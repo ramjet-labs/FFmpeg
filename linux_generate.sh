@@ -1,7 +1,7 @@
 #!/bin/bash
 
 PREFIX=out
-TOOLCHAINS=/home/zj/gcc-linaro-arm-linux-gnueabihf-4.7-2013.04-20130415_linux
+TOOLCHAINS=/home/zhaojun/gcc-linaro-arm-linux-gnueabihf-4.7-2013.04-20130415_linux
 CROSS_COMPILE=${TOOLCHAINS}/bin/arm-linux-gnueabihf-
 
 LOCAL_PATH=`pwd`
@@ -44,6 +44,7 @@ FFMPEG_FLAGS="--prefix=${PREFIX} \
   --enable-neon \
   --enable-version3 \
   --enable-encoder=h264_rkvpu \
+  --enable-encoder=hevc_rkvpu \
   --disable-asm"
 
 #--enable-debug \

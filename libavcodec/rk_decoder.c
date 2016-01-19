@@ -66,10 +66,12 @@ static int rkdec_prepare(AVCodecContext* avctx)
         return -1;
     }
 
+#if 0
     EncParameter_t param;
     param.width = avctx->width;
     param.height = avctx->height;
     rkdec_ctx->ctx->control(rkdec_ctx->ctx, VPU_API_MALLOC_THREAD, &param);
+#endif
 
     return 0;
 }
@@ -86,6 +88,9 @@ static int rkdec_init(AVCodecContext *avctx) {
     switch(avctx->codec_id){
         case AV_CODEC_ID_H264:
             rkdec_ctx->video_type = OMX_RK_VIDEO_CodingAVC;
+            break;
+        case AV_CODEC_ID_HEVC:
+            rkdec_ctx->video_type = OMX_RK_VIDEO_CodingHEVC;
             break;
         default:
             av_log(avctx, AV_LOG_ERROR, "codec id %d is not supported", avctx->codec_id);
@@ -160,7 +165,7 @@ static int rkdec_decode_frame(AVCodecContext *avctx/*ctx*/, void *data/*AVFrame*
             rkdec_ctx->vpu_mem_dup(&rkdec_ctx->front_vpumem, &pframe->vpumem);
             int dma_fd = rkdec_ctx->vpu_mem_getfd(&rkdec_ctx->front_vpumem);
             frame->data[3] = dma_fd;
-#if 0
+#if 1
 			uint32_t wAlign16 = pframe->FrameWidth;
 			uint32_t hAlign16 = pframe->FrameHeight;
 			uint32_t frameSize = wAlign16 * hAlign16 * 3 / 2;
@@ -228,3 +233,4 @@ static void rkdec_decode_flush(AVCodecContext *avctx) {
     };                                                                      \
 
 DECLARE_RKDEC_VIDEO_DECODER(h264_rkvpu, AV_CODEC_ID_H264)
+DECLARE_RKDEC_VIDEO_DECODER(hevc_rkvpu, AV_CODEC_ID_HEVC)

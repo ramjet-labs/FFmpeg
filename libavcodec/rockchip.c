@@ -8,6 +8,7 @@ bool rk_hw_support(enum AVCodecID codec_id, CODEC_TYPE codec_type) {
 	case CODEC_DECODER:
 		switch (codec_id) {
         	case AV_CODEC_ID_H264:
+		case AV_CODEC_ID_HEVC:
             	return true;
 	        default:
     	        return false;
