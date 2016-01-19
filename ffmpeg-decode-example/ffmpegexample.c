@@ -388,7 +388,7 @@ int main(int argc, const char *argv[])  {
 	init_cmd_context(&cmd_ctx);
 	parse_options(argc, argv, &cmd_ctx);
 
-	if (cmd_ctx->displayed) {
+	if (cmd_ctx.displayed) {
 		init_drm_context(&cmd_ctx);
 	}
 
@@ -447,12 +447,12 @@ int main(int argc, const char *argv[])  {
 					dma_node.height = (cmd_ctx.codec_ctx->height + 15) & (~15);
 					dma_node.dma_fd = cmd_ctx.frame->data[3];
 
-					if (cmd_ctx->record_frame) {
+					if (cmd_ctx.record_frame) {
 						save_frame(cmd_ctx.frame, dma_node.width, dma_node.height, count);
 						count++;
 					}
 
-					if (cmd_ctx->displayed)
+					if (cmd_ctx.displayed)
 						display_one_frame(&cmd_ctx, &dma_node);
 				}
 			}
