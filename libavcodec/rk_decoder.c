@@ -18,154 +18,152 @@
 
 typedef struct _RkVpuDecContext {
 	RkVpuContext				parent_ctx;
-    OMX_RK_VIDEO_CODINGTYPE		video_type;
-    VpuCodecContext_t*			ctx;
-    DecoderOut_t				decOut;
-    VideoPacket_t				demoPkt;
-    VpuMemFunc					vpu_mem_link;
-    VpuMemFunc					vpu_free_linear;
-    VpuMemFunc					vpu_mem_invalidate;
-    VpuMemFunc                  vpu_mem_getfd;
-    VpuContextFunc				vpu_open;
-    VpuContextFunc				vpu_close;
-    VPUMemLinear_t              front_vpumem;
-    RK_S32 (*vpu_mem_dup)(VPUMemLinear_t *dst, VPUMemLinear_t *src);
+	OMX_RK_VIDEO_CODINGTYPE		video_type;
+	VpuCodecContext_t *ctx;
+	DecoderOut_t				decOut;
+	VideoPacket_t				demoPkt;
+	VpuMemFunc					vpu_mem_link;
+	VpuMemFunc					vpu_free_linear;
+	VpuMemFunc					vpu_mem_invalidate;
+	VpuMemFunc                  vpu_mem_getfd;
+	VpuContextFunc				vpu_open;
+	VpuContextFunc				vpu_close;
+	VPUMemLinear_t              front_vpumem;
+	RK_S32 (*vpu_mem_dup)(VPUMemLinear_t *dst, VPUMemLinear_t *src);
 } RkVpuDecContext;
 
-static int rkdec_prepare(AVCodecContext* avctx)
+static int rkdec_prepare(AVCodecContext *avctx)
 {
-    RkVpuDecContext* rkdec_ctx = avctx->priv_data;
+	RkVpuDecContext *rkdec_ctx = avctx->priv_data;
 
-    if (!rk_init_dlopen(avctx)) {
-        av_log(avctx, AV_LOG_ERROR, "init_rkdeclib failed");
-        return -1;
-    }
+	if (!rk_init_dlopen(avctx)) {
+		av_log(avctx, AV_LOG_ERROR, "init_rkdeclib failed");
+		return -1;
+	}
 
-    rkdec_ctx->vpu_open = (VpuContextFunc) dlsym(rkdec_ctx->parent_ctx.api_handle, "vpu_open_context");
-    rkdec_ctx->vpu_close = (VpuContextFunc) dlsym(rkdec_ctx->parent_ctx.api_handle, "vpu_close_context");
-    rkdec_ctx->vpu_mem_link = (VpuMemFunc) dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUMemLink");
-    rkdec_ctx->vpu_free_linear = (VpuMemFunc) dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUFreeLinear");
-    rkdec_ctx->vpu_mem_invalidate = (VpuMemFunc) dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUMemInvalidate");
-    rkdec_ctx->vpu_mem_getfd = (VpuMemFunc) dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUMemGetFD");
-    rkdec_ctx->vpu_mem_dup = (VpuMemFunc) dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUMemDuplicate");
+	rkdec_ctx->vpu_open = (VpuContextFunc)dlsym(rkdec_ctx->parent_ctx.api_handle, "vpu_open_context");
+	rkdec_ctx->vpu_close = (VpuContextFunc)dlsym(rkdec_ctx->parent_ctx.api_handle, "vpu_close_context");
+	rkdec_ctx->vpu_mem_link = (VpuMemFunc)dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUMemLink");
+	rkdec_ctx->vpu_free_linear = (VpuMemFunc)dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUFreeLinear");
+	rkdec_ctx->vpu_mem_invalidate = (VpuMemFunc)dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUMemInvalidate");
+	rkdec_ctx->vpu_mem_getfd = (VpuMemFunc)dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUMemGetFD");
+	rkdec_ctx->vpu_mem_dup = (VpuMemFunc)dlsym(rkdec_ctx->parent_ctx.vpu_handle, "VPUMemDuplicate");
 
-    if (rkdec_ctx->vpu_open(&rkdec_ctx->ctx) || rkdec_ctx->ctx == NULL) {
-        av_log(avctx, AV_LOG_ERROR, "vpu_open_context failed");
-        return -1;
-    }
+	if (rkdec_ctx->vpu_open(&rkdec_ctx->ctx) || rkdec_ctx->ctx == NULL) {
+		av_log(avctx, AV_LOG_ERROR, "vpu_open_context failed");
+		return -1;
+	}
 
-    rkdec_ctx->ctx->codecType = CODEC_DECODER;
-    rkdec_ctx->ctx->videoCoding = rkdec_ctx->video_type;
-    rkdec_ctx->ctx->width = avctx->width;
-    rkdec_ctx->ctx->height = avctx->height;
-    rkdec_ctx->ctx->no_thread = 1;
-    rkdec_ctx->ctx->enableparsing = 1;
+	rkdec_ctx->ctx->codecType = CODEC_DECODER;
+	rkdec_ctx->ctx->videoCoding = rkdec_ctx->video_type;
+	rkdec_ctx->ctx->width = avctx->width;
+	rkdec_ctx->ctx->height = avctx->height;
+	rkdec_ctx->ctx->no_thread = 1;
+	rkdec_ctx->ctx->enableparsing = 1;
 
-    if (rkdec_ctx->ctx->init(rkdec_ctx->ctx, avctx->extradata, avctx->extradata_size) != 0) {
-        av_log(avctx, AV_LOG_ERROR, "ctx init failed");
-        return -1;
-    }
+	if (rkdec_ctx->ctx->init(rkdec_ctx->ctx, avctx->extradata, avctx->extradata_size) != 0) {
+		av_log(avctx, AV_LOG_ERROR, "ctx init failed");
+		return -1;
+	}
 
 #if 0
-    EncParameter_t param;
-    param.width = avctx->width;
-    param.height = avctx->height;
-    rkdec_ctx->ctx->control(rkdec_ctx->ctx, VPU_API_MALLOC_THREAD, &param);
+	EncParameter_t param;
+	param.width = avctx->width;
+	param.height = avctx->height;
+	rkdec_ctx->ctx->control(rkdec_ctx->ctx, VPU_API_MALLOC_THREAD, &param);
 #endif
 
-    return 0;
+	return 0;
 }
 
-static int rkdec_init(AVCodecContext *avctx) {
-    RkVpuDecContext* rkdec_ctx = avctx->priv_data;
-    if (!rk_hw_support(avctx->codec_id, CODEC_DECODER)) {
-        return -1;
-    }
-	
-    memset(rkdec_ctx, 0, sizeof(RkVpuDecContext));
-	
-    rkdec_ctx->video_type = OMX_RK_VIDEO_CodingUnused;
-    switch(avctx->codec_id){
-        case AV_CODEC_ID_H264:
-            rkdec_ctx->video_type = OMX_RK_VIDEO_CodingAVC;
-            break;
-        case AV_CODEC_ID_HEVC:
-            rkdec_ctx->video_type = OMX_RK_VIDEO_CodingHEVC;
-            break;
-        default:
-            av_log(avctx, AV_LOG_ERROR, "codec id %d is not supported", avctx->codec_id);
-            break;
-    }
-
-    avctx->pix_fmt = AV_PIX_FMT_YUV420P;
-
-    return rkdec_prepare(avctx);
-}
-
-static int rkdec_deinit(AVCodecContext *avctx) {
-    RkVpuDecContext* rkdec_ctx = avctx->priv_data;
-
-    rkdec_ctx->vpu_close(&rkdec_ctx->ctx);
-    rk_deinit_dlopen(avctx);
-
-    return 0;
-}
-
-//static struct timeval start_time, end_time;
-static int rkdec_decode_frame(AVCodecContext *avctx/*ctx*/, void *data/*AVFrame*/,
-        int *got_frame/*frame count*/, AVPacket *packet/*src*/) 
+static int rkdec_init(AVCodecContext *avctx)
 {
-    int ret = 0;
-    RkVpuDecContext* rkdec_ctx = avctx->priv_data;
-    VpuCodecContext_t* ctx = rkdec_ctx->ctx;
-    VideoPacket_t* pDemoPkt = &rkdec_ctx->demoPkt;
-    DecoderOut_t* pDecOut = &rkdec_ctx->decOut;
+	RkVpuDecContext *rkdec_ctx = avctx->priv_data;
+	if (!rk_hw_support(avctx->codec_id, CODEC_DECODER)) {
+		return -1;
+	}
 
-    pDemoPkt->data = packet->data;
-    pDemoPkt->size = packet->size;
+	memset(rkdec_ctx, 0, sizeof(RkVpuDecContext));
 
-    if (packet->pts != AV_NOPTS_VALUE) {
-        pDemoPkt->pts = av_q2d(avctx->time_base)*(packet->pts)*1000000ll;
-    } else {
-        pDemoPkt->pts = av_q2d(avctx->time_base)*(packet->dts)*1000000ll;
-    }
+	rkdec_ctx->video_type = OMX_RK_VIDEO_CodingUnused;
+	switch (avctx->codec_id) {
+	case AV_CODEC_ID_H264:
+		rkdec_ctx->video_type = OMX_RK_VIDEO_CodingAVC;
+		break;
+	case AV_CODEC_ID_HEVC:
+		rkdec_ctx->video_type = OMX_RK_VIDEO_CodingHEVC;
+		break;
+	default:
+		av_log(avctx, AV_LOG_ERROR, "codec id %d is not supported", avctx->codec_id);
+		break;
+	}
 
-    memset(pDecOut, 0, sizeof(DecoderOut_t));
-    pDecOut->data = (RK_U8 *)(av_malloc)(sizeof(VPU_FRAME));
-    if (pDecOut->data == NULL) {
-        av_log(avctx, AV_LOG_ERROR, "malloc VPU_FRAME failed");
-        goto out;
-    }
+	avctx->pix_fmt = AV_PIX_FMT_YUV420P;
 
-    memset(pDecOut->data, 0, sizeof(VPU_FRAME));
-    pDecOut->size = 0; 
+	return rkdec_prepare(avctx);
+}
 
-    //gettimeofday(&end_time, NULL);
-    //printf("ffmpeg consume time %d\n", (end_time.tv_sec - start_time.tv_sec) * 1000000 + end_time.tv_usec - start_time.tv_usec);
+static int rkdec_deinit(AVCodecContext *avctx)
+{
+	RkVpuDecContext *rkdec_ctx = avctx->priv_data;
 
-    if (ctx->decode_sendstream(ctx, pDemoPkt) != 0) {
-        av_log(avctx, AV_LOG_ERROR, "send packet failed");
-    }
+	rkdec_ctx->vpu_close(&rkdec_ctx->ctx);
+	rk_deinit_dlopen(avctx);
 
-    if ((ret = ctx->decode_getframe(ctx, pDecOut)) == 0) {
-        if (pDecOut->size && pDecOut->data) {
+	return 0;
+}
+
+static int rkdec_decode_frame(AVCodecContext *avctx/*ctx*/, void *data/*AVFrame*/,
+							  int *got_frame/*frame count*/, AVPacket *packet/*src*/)
+{
+	int ret = 0;
+	RkVpuDecContext *rkdec_ctx = avctx->priv_data;
+	VpuCodecContext_t *ctx = rkdec_ctx->ctx;
+	VideoPacket_t *pDemoPkt = &rkdec_ctx->demoPkt;
+	DecoderOut_t *pDecOut = &rkdec_ctx->decOut;
+
+	pDemoPkt->data = packet->data;
+	pDemoPkt->size = packet->size;
+
+	if (packet->pts != AV_NOPTS_VALUE) {
+		pDemoPkt->pts = av_q2d(avctx->time_base) * (packet->pts) * 1000000ll;
+	} else {
+		pDemoPkt->pts = av_q2d(avctx->time_base) * (packet->dts) * 1000000ll;
+	}
+
+	memset(pDecOut, 0, sizeof(DecoderOut_t));
+	pDecOut->data = (RK_U8 *)(av_malloc)(sizeof(VPU_FRAME));
+	if (pDecOut->data == NULL) {
+		av_log(avctx, AV_LOG_ERROR, "malloc VPU_FRAME failed");
+		goto out;
+	}
+
+	memset(pDecOut->data, 0, sizeof(VPU_FRAME));
+	pDecOut->size = 0;
+
+	if (ctx->decode_sendstream(ctx, pDemoPkt) != 0) {
+		av_log(avctx, AV_LOG_ERROR, "send packet failed");
+	}
+
+	if ((ret = ctx->decode_getframe(ctx, pDecOut)) == 0) {
+		if (pDecOut->size && pDecOut->data) {
 			AVFrame *frame = data;
 			if ((ret = ff_get_buffer(avctx, frame, 0)) < 0) {
 				av_log(avctx, AV_LOG_ERROR, "Failed to get buffer!!!:%d", ret);
 				goto out;
 			}
 
-            if (rkdec_ctx->front_vpumem.phy_addr) {
-                rkdec_ctx->vpu_free_linear(&rkdec_ctx->front_vpumem);
-            }
+			if (rkdec_ctx->front_vpumem.phy_addr) {
+				rkdec_ctx->vpu_free_linear(&rkdec_ctx->front_vpumem);
+			}
 
-			VPU_FRAME *pframe = (VPU_FRAME *) (pDecOut->data);
+			VPU_FRAME *pframe = (VPU_FRAME *)(pDecOut->data);
 			rkdec_ctx->vpu_mem_link(&pframe->vpumem);
 			rkdec_ctx->vpu_mem_invalidate(&pframe->vpumem);
-            rkdec_ctx->vpu_mem_dup(&rkdec_ctx->front_vpumem, &pframe->vpumem);
-            int dma_fd = rkdec_ctx->vpu_mem_getfd(&rkdec_ctx->front_vpumem);
-            frame->data[3] = dma_fd;
-#if 1
+			rkdec_ctx->vpu_mem_dup(&rkdec_ctx->front_vpumem, &pframe->vpumem);
+			int dma_fd = rkdec_ctx->vpu_mem_getfd(&rkdec_ctx->front_vpumem);
+			frame->data[3] = dma_fd;
+#if 0
 			uint32_t wAlign16 = pframe->FrameWidth;
 			uint32_t hAlign16 = pframe->FrameHeight;
 			uint32_t frameSize = wAlign16 * hAlign16 * 3 / 2;
@@ -199,18 +197,16 @@ out:
 	if (ret < 0) {
 		av_log(avctx, AV_LOG_ERROR, "Something wrong during decode!!!");
 	}
-    
-    //gettimeofday(&start_time, NULL);
-    //printf("libvpu consume time %d\n", (start_time.tv_sec - end_time.tv_sec) * 1000000 + start_time.tv_usec - end_time.tv_usec);
 
 	return (ret < 0) ? ret : packet->size;
 }
 
-static void rkdec_decode_flush(AVCodecContext *avctx) {
-	RkVpuDecContext* rkdec_ctx = avctx->priv_data;
-    if (rkdec_ctx->front_vpumem.phy_addr) {
-        rkdec_ctx->vpu_free_linear(&rkdec_ctx->front_vpumem);
-    }
+static void rkdec_decode_flush(AVCodecContext *avctx)
+{
+	RkVpuDecContext *rkdec_ctx = avctx->priv_data;
+	if (rkdec_ctx->front_vpumem.phy_addr) {
+		rkdec_ctx->vpu_free_linear(&rkdec_ctx->front_vpumem);
+	}
 	rkdec_ctx->ctx->flush(rkdec_ctx->ctx);
 }
 

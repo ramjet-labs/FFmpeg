@@ -419,7 +419,7 @@ int main(int argc, const char *argv[])  {
 				}
 				struct dma_fd_list *dma_node = list_first_entry(&cmd_ctx.head, struct dma_fd_list, node);
 				list_del(&dma_node->node);
-				if (cmd_ctx->displayed)
+				if (cmd_ctx.displayed)
 					display_one_frame(&cmd_ctx, dma_node);
 				close(dma_node->dma_fd);
 				free(dma_node);
@@ -447,7 +447,7 @@ int main(int argc, const char *argv[])  {
 					dma_node.height = (cmd_ctx.codec_ctx->height + 15) & (~15);
 					dma_node.dma_fd = cmd_ctx.frame->data[3];
 
-					if (cmd_ctx.record_frame) {
+					if (count < cmd_ctx.record_frame) {
 						save_frame(cmd_ctx.frame, dma_node.width, dma_node.height, count);
 						count++;
 					}
