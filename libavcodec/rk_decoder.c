@@ -93,6 +93,12 @@ static int rkdec_init(AVCodecContext *avctx)
 	case AV_CODEC_ID_HEVC:
 		rkdec_ctx->video_type = OMX_RK_VIDEO_CodingHEVC;
 		break;
+	case AV_CODEC_ID_MPEG4:
+		rkdec_ctx->video_type = OMX_RK_VIDEO_CodingMPEG4;
+		break;
+	case AV_CODEC_ID_MJPEG:
+		rkdec_ctx->video_type = OMX_RK_VIDEO_CodingMJPEG;
+		break;
 	default:
 		av_log(avctx, AV_LOG_ERROR, "codec id %d is not supported", avctx->codec_id);
 		break;
@@ -147,7 +153,18 @@ static int rkdec_decode_frame(AVCodecContext *avctx/*ctx*/, void *data/*AVFrame*
 
 	if ((ret = ctx->decode_getframe(ctx, pDecOut)) == 0) {
 		if (pDecOut->size && pDecOut->data) {
+			VPU_FRAME *pframe = (VPU_FRAME *)(pDecOut->data);
 			AVFrame *frame = data;
+
+			rkdec_ctx->vpu_mem_link(&pframe->vpumem);
+			rkdec_ctx->vpu_mem_invalidate(&pframe->vpumem);
+			rkdec_ctx->vpu_mem_dup(&rkdec_ctx->front_vpumem, &pframe->vpumem);
+
+			if (avctx->width == 0 || avctx->height == 0) {
+				avctx->width = pframe->DisplayWidth;
+				avctx->height = pframe->DisplayHeight;
+			}
+
 			if ((ret = ff_get_buffer(avctx, frame, 0)) < 0) {
 				av_log(avctx, AV_LOG_ERROR, "Failed to get buffer!!!:%d", ret);
 				goto out;
@@ -157,10 +174,6 @@ static int rkdec_decode_frame(AVCodecContext *avctx/*ctx*/, void *data/*AVFrame*
 				rkdec_ctx->vpu_free_linear(&rkdec_ctx->front_vpumem);
 			}
 
-			VPU_FRAME *pframe = (VPU_FRAME *)(pDecOut->data);
-			rkdec_ctx->vpu_mem_link(&pframe->vpumem);
-			rkdec_ctx->vpu_mem_invalidate(&pframe->vpumem);
-			rkdec_ctx->vpu_mem_dup(&rkdec_ctx->front_vpumem, &pframe->vpumem);
 			int dma_fd = rkdec_ctx->vpu_mem_getfd(&rkdec_ctx->front_vpumem);
 			frame->data[3] = dma_fd;
 #if 0
@@ -230,3 +243,5 @@ static void rkdec_decode_flush(AVCodecContext *avctx)
 
 DECLARE_RKDEC_VIDEO_DECODER(h264_rkvpu, AV_CODEC_ID_H264)
 DECLARE_RKDEC_VIDEO_DECODER(hevc_rkvpu, AV_CODEC_ID_HEVC)
+DECLARE_RKDEC_VIDEO_DECODER(mpeg4_rkvpu, AV_CODEC_ID_MPEG4)
+DECLARE_RKDEC_VIDEO_DECODER(mjpeg_rkvpu, AV_CODEC_ID_MJPEG)

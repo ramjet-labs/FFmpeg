@@ -43,8 +43,6 @@ FFMPEG_FLAGS="--prefix=${PREFIX} \
   --enable-swscale  \
   --enable-neon \
   --enable-version3 \
-  --enable-encoder=h264_rkvpu \
-  --enable-encoder=hevc_rkvpu \
   --disable-asm"
 
 #--enable-debug \
