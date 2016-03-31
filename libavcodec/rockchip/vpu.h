@@ -1,3 +1,19 @@
+/*
+ * Copyright 2010 Rockchip Electronics S.LSI Co. LTD
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 #ifndef __VPU_H__
 #define __VPU_H__
 
@@ -41,18 +57,18 @@ typedef struct VPUHwDecConfig
     RK_U32 jpegSupport;            /* HW supports JPEG */
     RK_U32 mpeg4Support;           /* HW supports MPEG-4 */
     RK_U32 customMpeg4Support;     /* HW supports custom MPEG-4 features */
-    RK_U32 vc1Support;             /* HW supports VC-1 Simple */
+    RK_U32 reserv0;
     RK_U32 mpeg2Support;           /* HW supports MPEG-2 */
     RK_U32 ppSupport;              /* HW supports post-processor */
     RK_U32 ppConfig;               /* HW post-processor functions bitmask */
-    RK_U32 sorensonSparkSupport;   /* HW supports Sorenson Spark */
+    RK_U32 reserv1;
     RK_U32 refBufSupport;          /* HW supports reference picture buffering */
-    RK_U32 vp6Support;             /* HW supports VP6 */
-    RK_U32 vp7Support;             /* HW supports VP7 */
+    RK_U32 reserv2;
+    RK_U32 reserv3;
     RK_U32 vp8Support;             /* HW supports VP8 */
-    RK_U32 avsSupport;             /* HW supports AVS */
+    RK_U32 reserv4;
     RK_U32 jpegESupport;           /* HW supports JPEG extensions */
-    RK_U32 rvSupport;              /* HW supports REAL */
+    RK_U32 reserv5;
     RK_U32 mvcSupport;             /* HW supports H264 MVC extension */
 } VPUHwDecConfig_t;
 
