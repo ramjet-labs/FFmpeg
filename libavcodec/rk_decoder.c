@@ -11,6 +11,7 @@
 #include "rockchip/vpu.h"
 #include "rockchip/vpu_global.h"
 #include "rockchip/vpu_api_private.h"
+#include "rockchip/vpu_simple_mem_pool.h"
 #include "rockchip.h"
 
 #include "avcodec.h"
@@ -30,6 +31,7 @@ typedef struct _RkVpuDecContext {
 	VpuContextFunc				vpu_close;
 	VPUMemLinear_t              front_vpumem;
 	RK_S32 (*vpu_mem_dup)(VPUMemLinear_t *dst, VPUMemLinear_t *src);
+	int enable_mem_pool;
 } RkVpuDecContext;
 
 static int rkdec_prepare(AVCodecContext *avctx)
@@ -64,6 +66,13 @@ static int rkdec_prepare(AVCodecContext *avctx)
 	if (rkdec_ctx->ctx->init(rkdec_ctx->ctx, avctx->extradata, avctx->extradata_size) != 0) {
 		av_log(avctx, AV_LOG_ERROR, "ctx init failed");
 		return -1;
+	}
+
+	if (avctx->opaque != NULL) {
+		rkdec_ctx->ctx->control(rkdec_ctx->ctx, VPU_API_SET_VPUMEM_CONTEXT, avctx->opaque);
+		rkdec_ctx->enable_mem_pool = 1;
+	} else {
+		rkdec_ctx->enable_mem_pool = 0;
 	}
 
 #if 0
@@ -123,6 +132,7 @@ static int rkdec_decode_frame(AVCodecContext *avctx/*ctx*/, void *data/*AVFrame*
 							  int *got_frame/*frame count*/, AVPacket *packet/*src*/)
 {
 	int ret = 0;
+	int i;
 	RkVpuDecContext *rkdec_ctx = avctx->priv_data;
 	VpuCodecContext_t *ctx = rkdec_ctx->ctx;
 	VideoPacket_t *pDemoPkt = &rkdec_ctx->demoPkt;
@@ -156,10 +166,6 @@ static int rkdec_decode_frame(AVCodecContext *avctx/*ctx*/, void *data/*AVFrame*
 			VPU_FRAME *pframe = (VPU_FRAME *)(pDecOut->data);
 			AVFrame *frame = data;
 
-			rkdec_ctx->vpu_mem_link(&pframe->vpumem);
-			rkdec_ctx->vpu_mem_invalidate(&pframe->vpumem);
-			rkdec_ctx->vpu_mem_dup(&rkdec_ctx->front_vpumem, &pframe->vpumem);
-
 			if (avctx->width == 0 || avctx->height == 0) {
 				avctx->width = pframe->DisplayWidth;
 				avctx->height = pframe->DisplayHeight;
@@ -169,30 +175,36 @@ static int rkdec_decode_frame(AVCodecContext *avctx/*ctx*/, void *data/*AVFrame*
 				av_log(avctx, AV_LOG_ERROR, "Failed to get buffer!!!:%d", ret);
 				goto out;
 			}
-
-			if (rkdec_ctx->front_vpumem.phy_addr) {
+			
+			if (rkdec_ctx->enable_mem_pool == 0 && rkdec_ctx->front_vpumem.phy_addr) {
 				rkdec_ctx->vpu_free_linear(&rkdec_ctx->front_vpumem);
 			}
 
+			//rkdec_ctx->vpu_mem_link(&pframe->vpumem);
+			//rkdec_ctx->vpu_mem_invalidate(&pframe->vpumem);
+			rkdec_ctx->vpu_mem_dup(&rkdec_ctx->front_vpumem, &pframe->vpumem);
+ 
 			int dma_fd = rkdec_ctx->vpu_mem_getfd(&rkdec_ctx->front_vpumem);
 			frame->data[3] = dma_fd;
-#if 0
-			uint32_t wAlign16 = pframe->FrameWidth;
-			uint32_t hAlign16 = pframe->FrameHeight;
-			uint32_t frameSize = wAlign16 * hAlign16 * 3 / 2;
-			uint8_t *buffer = pframe->vpumem.vir_addr;
-			memcpy(buffer, pframe->vpumem.vir_addr, frameSize);
-			for (int i = 0;i < hAlign16;i++) {
-				memcpy((frame->data[0] + i * frame->linesize[0]), (buffer + i * wAlign16), wAlign16);
-			}
-			uint8_t *tmpBuffer = buffer + wAlign16 * hAlign16;
-			for (int i = 0;i < (hAlign16 >> 1);i++) {
-				for (int j = 0;j < (wAlign16 >> 1);j++) {
-					*(frame->data[1] + j + i * frame->linesize[1]) = *(tmpBuffer + 2 * j + i * wAlign16);
-					*(frame->data[2] + j + i * frame->linesize[2]) = *(tmpBuffer + 2 * j + 1 + i * wAlign16);
+
+			if (getenv("RK_FFMPEG_SAVE_PIC") != NULL && atoi(getenv("RK_FFMPEG_SAVE_PIC")) == 1) {
+				uint32_t wAlign16 = pframe->FrameWidth;
+				uint32_t hAlign16 = pframe->FrameHeight;
+				uint32_t frameSize = wAlign16 * hAlign16 * 3 / 2;
+				uint8_t *buffer = pframe->vpumem.vir_addr;
+				memcpy(buffer, pframe->vpumem.vir_addr, frameSize);
+				for (int i = 0;i < hAlign16;i++) {
+					memcpy((frame->data[0] + i * frame->linesize[0]), (buffer + i * wAlign16), wAlign16);
+				}
+				uint8_t *tmpBuffer = buffer + wAlign16 * hAlign16;
+				for (int i = 0;i < (hAlign16 >> 1);i++) {
+					for (int j = 0;j < (wAlign16 >> 1);j++) {
+						*(frame->data[1] + j + i * frame->linesize[1]) = *(tmpBuffer + 2 * j + i * wAlign16);
+						*(frame->data[2] + j + i * frame->linesize[2]) = *(tmpBuffer + 2 * j + 1 + i * wAlign16);
+					}
 				}
 			}
-#endif
+
 			rkdec_ctx->vpu_free_linear(&pframe->vpumem);
 
 			*got_frame = 1;
@@ -242,6 +254,5 @@ static void rkdec_decode_flush(AVCodecContext *avctx)
     };                                                                      \
 
 DECLARE_RKDEC_VIDEO_DECODER(h264_rkvpu, AV_CODEC_ID_H264)
-DECLARE_RKDEC_VIDEO_DECODER(hevc_rkvpu, AV_CODEC_ID_HEVC)
 DECLARE_RKDEC_VIDEO_DECODER(mpeg4_rkvpu, AV_CODEC_ID_MPEG4)
 DECLARE_RKDEC_VIDEO_DECODER(mjpeg_rkvpu, AV_CODEC_ID_MJPEG)
