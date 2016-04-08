@@ -101,7 +101,6 @@ void avcodec_register_all(void)
     /* rk codec */
     REGISTER_ENCODER(H264_RKVPU,        h264_rkvpu);
     REGISTER_DECODER(H264_RKVPU,        h264_rkvpu);
-    REGISTER_DECODER(HEVC_RKVPU,        hevc_rkvpu);
     REGISTER_DECODER(MPEG4_RKVPU,       mpeg4_rkvpu);
     REGISTER_DECODER(MJPEG_RKVPU,       mjpeg_rkvpu);
 

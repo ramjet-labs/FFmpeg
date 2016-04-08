@@ -232,6 +232,7 @@ static int rkenc_encode_frame(AVCodecContext *avctx, AVPacket *packet, const AVF
 
     w_align = frame->width;
     h_align = frame->height;
+#if 0
     pEncOut->data = av_malloc(w_align * h_align);
     if (pEncOut->data == NULL) {
         av_log(avctx, AV_LOG_ERROR, "faild to malloc for enc out data");
@@ -242,14 +243,16 @@ static int rkenc_encode_frame(AVCodecContext *avctx, AVPacket *packet, const AVF
 
     pEncOut->size = w_align * h_align;
 	
-	memset(pEncOut->data, 0, pEncOut->size);
+    memset(pEncOut->data, 0, pEncOut->size);
+#endif
 
     if (ctx->encoder_sendframe(ctx, pDemoPkt) != 0) {
         av_log(avctx, AV_LOG_ERROR, "send packet failed");
         ret = -1;
-		*got_packet = 0;
+	*got_packet = 0;
         goto vpu_encoder_failed;
     }
+    pEncOut->data = NULL;
 
 	pEncOut->size = 0;
     if ((ret = ctx->encoder_getstream(ctx, pEncOut)) == 0) {
