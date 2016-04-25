@@ -34,6 +34,9 @@
 #include "xf86drm.h"
 #include "xf86drmMode.h"
 #include "list.h"
+#include "rockchip_drm.h"
+#include "rockchip_rga.h"
+#include "rockchip_drmif.h"
 
 #define DMA_FD_QUEUE_LENGTH 20
 
@@ -65,6 +68,7 @@ struct cmd_context {
 
 	/* display parameter */
 	int displayed;
+	int rotate;
 	struct sp_dev *dev;
 	struct sp_plane **plane;
 	struct sp_crtc *test_crtc;
@@ -242,6 +246,7 @@ void init_cmd_context(struct cmd_context *cmd_ctx) {
 	/* default no display */
 	cmd_ctx->displayed = 0;
 
+	cmd_ctx->rotate = 0;
 	/* default no save frame */
 	cmd_ctx->record_frame = 0;
 
@@ -295,9 +300,19 @@ void init_drm_context(struct cmd_context *cmd_ctx) {
 
 int display_one_frame(struct cmd_context *cmd_ctx, struct dma_fd_list *node) {
 	int ret;
+	struct rga_context *ctx;
+	struct rockchip_bo *rga_bo;
 	struct drm_mode_create_dumb cd;
+	struct rga_image src_img = {0}, dst_img = {0};
 	struct sp_bo *bo;
+	int rga_fd;
 	uint32_t handles[4], pitches[4], offsets[4];
+
+	ctx = rga_init(cmd_ctx->dev->fd);
+	if (!ctx) {
+		printf("Failed to open rga device\n");
+		exit(-1);
+	}
 
 	bo = calloc(1, sizeof(*bo));
 	if (!bo) {
@@ -305,7 +320,39 @@ int display_one_frame(struct cmd_context *cmd_ctx, struct dma_fd_list *node) {
 		exit(-1);
 	}
 
-	ret = drmPrimeFDToHandle(cmd_ctx->dev->fd, node->dma_fd, &bo->handle);
+	rga_bo = rockchip_bo_create(cmd_ctx->dev->rockchip_dev, node->width * node->height * 3/2, 0);
+	if (!rga_bo) {
+		printf("Failed to create rockchip b\n");
+		exit(-1);
+	}
+	if (!rockchip_bo_map(rga_bo)) {
+		rockchip_bo_destroy(rga_bo);
+		exit(-1);
+	}
+	drmPrimeHandleToFD(cmd_ctx->dev->fd, rga_bo->handle, 0, &rga_fd);
+
+	src_img.bo[0] = node->dma_fd;
+	src_img.width = node->width;
+	src_img.height = node->height;
+	src_img.stride = node->width;
+	src_img.buf_type = RGA_IMGBUF_GEM;
+	src_img.color_mode = DRM_FORMAT_NV12;
+
+	dst_img.bo[0] = rga_fd;
+	dst_img.width = node->width;
+	dst_img.height = node->height;
+	dst_img.stride = node->width;
+	dst_img.buf_type = RGA_IMGBUF_GEM;
+	dst_img.color_mode = DRM_FORMAT_NV12;
+
+	ret = rga_copy_with_rotate(ctx, &src_img, &dst_img, 0, 0,
+				   node->virtual_width, node->virtual_height, 0, 0,
+				   node->virtual_width, node->virtual_height, cmd_ctx->rotate);
+	if (ret < 0) {
+		printf("Failed at rga_copy_with_rotate_scale_and_mirr\n");
+		exit(-1);
+	}
+	rga_exec(ctx);
 	bo->dev = cmd_ctx->dev;
 	bo->width = node->width;
 	bo->height = node->height;
@@ -313,6 +360,7 @@ int display_one_frame(struct cmd_context *cmd_ctx, struct dma_fd_list *node) {
 	bo->bpp = 32;
 	bo->format = DRM_FORMAT_NV12;
 	bo->flags = 0;
+	bo->handle = rga_bo->handle;
 
 	handles[0] = bo->handle;
 	pitches[0] = node->width;
@@ -329,6 +377,7 @@ int display_one_frame(struct cmd_context *cmd_ctx, struct dma_fd_list *node) {
 		exit(-1);
 	}
 
+	close(rga_fd);
 	ret = drmModeSetPlane(cmd_ctx->dev->fd, cmd_ctx->test_plane->plane->plane_id,
 			      cmd_ctx->test_crtc->crtc->crtc_id, bo->fb_id, 0, 0, 0,
 			      bo->width, bo->height, 0, 0,
@@ -354,9 +403,14 @@ int display_one_frame(struct cmd_context *cmd_ctx, struct dma_fd_list *node) {
 			drmIoctl(bo->dev->fd, DRM_IOCTL_GEM_CLOSE, &req);
 		}
 		free(cmd_ctx->test_plane->bo);
+		cmd_ctx->test_plane->bo = NULL;
 	}
 
 	cmd_ctx->test_plane->bo = bo;
+
+	munmap(rga_bo->vaddr, rga_bo->size);
+	free(rga_bo);
+	rga_fini(ctx);
 
 	return ret;
 
@@ -365,7 +419,7 @@ int display_one_frame(struct cmd_context *cmd_ctx, struct dma_fd_list *node) {
 void parse_options(int argc, const char *argv[], struct cmd_context *cmd_ctx) {
 	int opt;
 
-	while ((opt = getopt(argc, argv, "t:i:m:c:r:d:")) != -1) {
+	while ((opt = getopt(argc, argv, "t:i:m:c:r:d:o:")) != -1) {
 		switch (opt) {
 		case 't':
 			cmd_ctx->single_thread = atoi(optarg) == 1 ? 0 : 1;
@@ -385,6 +439,9 @@ void parse_options(int argc, const char *argv[], struct cmd_context *cmd_ctx) {
 		case 'd':
 			cmd_ctx->displayed = atoi(optarg);
 			break;
+		case 'o':
+			cmd_ctx->rotate = atoi(optarg);
+			break;
 		}
 	}
 
@@ -395,6 +452,7 @@ void parse_options(int argc, const char *argv[], struct cmd_context *cmd_ctx) {
 	printf("	cycle num: %d\n", cmd_ctx->cycle_num);
 	printf("	display: %d\n", cmd_ctx->displayed);
 	printf("	save output frame: %d\n", cmd_ctx->record_frame);
+	printf("	rotate degree: %d\n", cmd_ctx->rotate);
 }
 
 int main(int argc, const char *argv[])  {
