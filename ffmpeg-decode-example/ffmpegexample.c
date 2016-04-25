@@ -42,6 +42,8 @@ struct dma_fd_list {
 	int width;
 	int height;
 	int dma_fd;
+	int virtual_width;
+	int virtual_height;
 };
 
 struct cmd_context {
@@ -329,9 +331,9 @@ int display_one_frame(struct cmd_context *cmd_ctx, struct dma_fd_list *node) {
 
 	ret = drmModeSetPlane(cmd_ctx->dev->fd, cmd_ctx->test_plane->plane->plane_id,
 			      cmd_ctx->test_crtc->crtc->crtc_id, bo->fb_id, 0, 0, 0,
-			      cmd_ctx->test_crtc->crtc->mode.hdisplay,
-			      cmd_ctx->test_crtc->crtc->mode.vdisplay,
-			      0, 0, bo->width << 16, bo->height << 16);
+			      bo->width, bo->height, 0, 0,
+				  node->virtual_width << 16, node->virtual_height << 16);
+
 	if (ret) {
 		printf("failed to set plane to crtc ret=%d\n", ret);
 		exit(-1);
@@ -460,9 +462,12 @@ int main(int argc, const char *argv[])  {
 					struct dma_fd_list dma_node;
 					dma_node.width = (cmd_ctx.codec_ctx->width + 15) & (~15);
 					dma_node.height = (cmd_ctx.codec_ctx->height + 15) & (~15);
+					dma_node.virtual_width = (cmd_ctx.codec_ctx->width);
+					dma_node.virtual_height = (cmd_ctx.codec_ctx->height);
 					dma_node.dma_fd = cmd_ctx.frame->data[3];
+					printf("dma_node.dma_fd %d\n", dma_node.dma_fd);
 
-					if (count < cmd_ctx.record_frame) {
+					if (cmd_ctx.record_frame) {
 						save_frame(cmd_ctx.frame, dma_node.width, dma_node.height, count);
 						count++;
 					}
