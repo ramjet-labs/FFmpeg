@@ -11,7 +11,7 @@
 #include "rockchip/vpu.h"
 #include "rockchip/vpu_global.h"
 #include "rockchip/vpu_api_private.h"
-#include "rockchip/vpu_simple_mem_pool.h"
+//#include "rockchip/vpu_simple_mem_pool.h"
 #include "rockchip.h"
 
 #include "avcodec.h"
@@ -62,6 +62,13 @@ static int rkdec_prepare(AVCodecContext *avctx)
 	rkdec_ctx->ctx->height = avctx->height;
 	rkdec_ctx->ctx->no_thread = 1;
 	rkdec_ctx->ctx->enableparsing = 1;
+	
+	if (getenv("RK_FFMPEG_SAVE_INPUT") != NULL && atoi(getenv("RK_FFMPEG_SAVE_INPUT")) == 1 && avctx->extradata_size) {
+		FILE *fp = fopen("dump.raw", "ab+");
+		fwrite(avctx->extradata, 1, avctx->extradata_size, fp);
+		fflush(fp);
+		fclose(fp);
+	}
 
 	if (rkdec_ctx->ctx->init(rkdec_ctx->ctx, avctx->extradata, avctx->extradata_size) != 0) {
 		av_log(avctx, AV_LOG_ERROR, "ctx init failed");
@@ -156,6 +163,13 @@ static int rkdec_decode_frame(AVCodecContext *avctx/*ctx*/, void *data/*AVFrame*
 
 	memset(pDecOut->data, 0, sizeof(VPU_FRAME));
 	pDecOut->size = 0;
+
+	if (getenv("RK_FFMPEG_SAVE_INPUT") != NULL && atoi(getenv("RK_FFMPEG_SAVE_INPUT")) == 1) {
+		FILE *fp = fopen("dump.raw", "ab+");
+		fwrite(pDemoPkt->data, 1, pDemoPkt->size, fp);
+		fflush(fp);
+		fclose(fp);
+	}
 
 	if (ctx->decode_sendstream(ctx, pDemoPkt) != 0) {
 		av_log(avctx, AV_LOG_ERROR, "send packet failed");
