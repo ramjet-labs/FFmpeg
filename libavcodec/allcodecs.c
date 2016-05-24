@@ -98,6 +98,10 @@ void avcodec_register_all(void)
     REGISTER_HWACCEL(WMV3_VAAPI,        wmv3_vaapi);
     REGISTER_HWACCEL(WMV3_VDPAU,        wmv3_vdpau);
 
+    /* rk codec */
+    REGISTER_ENCODER(H264_RKVPU,        h264_rkvpu);
+    REGISTER_DECODER(H264_RKVPU,        h264_rkvpu);
+
     /* video codecs */
     REGISTER_ENCODER(A64MULTI,          a64multi);
     REGISTER_ENCODER(A64MULTI5,         a64multi5);
